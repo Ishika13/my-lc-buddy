@@ -168,11 +168,7 @@ function LogSolve() {
       });
       if (solveErr) throw solveErr;
 
-      toast.success(
-        existing || problemRow.box_level !== 1 || problemRow.last_solved_at
-          ? `Re-solve logged. Next review in ${nextDueLabel(newBox)}.`
-          : `Logged. Next review in ${nextDueLabel(newBox)}.`,
-      );
+      toast.success(`Logged. Next review in ${nextDueLabel(newBox)}.`);
       await router.invalidate();
       navigate({ to: "/" });
     } catch (err) {
