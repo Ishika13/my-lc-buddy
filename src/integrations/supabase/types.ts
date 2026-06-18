@@ -45,6 +45,7 @@ export type Database = {
           id: string
           last_solved_at: string | null
           lc_difficulty: string | null
+          lc_number: number | null
           lc_slug: string | null
           lc_url: string | null
           next_due: string | null
@@ -58,6 +59,7 @@ export type Database = {
           id?: string
           last_solved_at?: string | null
           lc_difficulty?: string | null
+          lc_number?: number | null
           lc_slug?: string | null
           lc_url?: string | null
           next_due?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           id?: string
           last_solved_at?: string | null
           lc_difficulty?: string | null
+          lc_number?: number | null
           lc_slug?: string | null
           lc_url?: string | null
           next_due?: string | null

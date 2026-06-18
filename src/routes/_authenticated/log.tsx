@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   nextBoxLevel,
   todayLocalISO,
 } from "@/lib/leitner";
+import { fetchLeetCodeQuestion } from "@/lib/leetcode.functions";
 
 const searchSchema = z.object({
   problem_id: z.string().uuid().optional(),
@@ -33,30 +35,41 @@ type ExistingProblem = {
   title: string | null;
   lc_url: string | null;
   lc_slug: string | null;
+  lc_number: number | null;
+  lc_difficulty: string | null;
   topic_tags: string[] | null;
   box_level: number;
 };
+
+type FetchState = "idle" | "loading" | "ok" | "error";
 
 function LogSolve() {
   const { user } = Route.useRouteContext();
   const { problem_id } = Route.useSearch();
   const navigate = useNavigate();
   const router = useRouter();
+  const lookup = useServerFn(fetchLeetCodeQuestion);
 
   const [loadingPrefill, setLoadingPrefill] = useState<boolean>(!!problem_id);
   const [existing, setExisting] = useState<ExistingProblem | null>(null);
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [topics, setTopics] = useState("");
+  const [difficulty, setDifficulty] = useState("");
+  const [number, setNumber] = useState<number | null>(null);
   const [rating, setRating] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fetchState, setFetchState] = useState<FetchState>("idle");
+
+  // Track which slug has already been looked up so we don't refetch on every keystroke.
+  const lastLookedUpSlug = useRef<string | null>(null);
 
   useEffect(() => {
     if (!problem_id) return;
     let cancelled = false;
     supabase
       .from("problems")
-      .select("id, title, lc_url, lc_slug, topic_tags, box_level")
+      .select("id, title, lc_url, lc_slug, lc_number, lc_difficulty, topic_tags, box_level")
       .eq("id", problem_id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -67,16 +80,56 @@ function LogSolve() {
           return;
         }
         if (data) {
-          setExisting(data);
+          setExisting(data as ExistingProblem);
           setUrl(data.lc_url ?? "");
           setTitle(data.title ?? "");
           setTopics((data.topic_tags ?? []).join(", "));
+          setDifficulty(data.lc_difficulty ?? "");
+          setNumber(data.lc_number ?? null);
+          if (data.lc_slug) lastLookedUpSlug.current = data.lc_slug;
         }
       });
     return () => {
       cancelled = true;
     };
   }, [problem_id]);
+
+  // Debounced auto-enrichment when the URL changes.
+  useEffect(() => {
+    if (existing) return; // don't overwrite a re-solve
+    const slug = deriveSlug(url);
+    if (!slug) {
+      setFetchState("idle");
+      return;
+    }
+    if (lastLookedUpSlug.current === slug) return;
+
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      setFetchState("loading");
+      try {
+        const q = await lookup({ data: { slug } });
+        if (cancelled) return;
+        lastLookedUpSlug.current = slug;
+        // Auto-fill only fields the user hasn't already filled in.
+        if (q.title && !title.trim()) setTitle(q.title);
+        if (q.difficulty && !difficulty.trim()) setDifficulty(q.difficulty);
+        if (q.number != null && number == null) setNumber(q.number);
+        if (q.topicTags.length && !topics.trim()) setTopics(q.topicTags.join(", "));
+        setFetchState("ok");
+      } catch {
+        if (cancelled) return;
+        lastLookedUpSlug.current = slug; // avoid hammering on repeated failure
+        setFetchState("error");
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, existing]);
 
   const parsedTopics = useMemo(
     () =>
@@ -101,29 +154,28 @@ function LogSolve() {
     try {
       const today = todayLocalISO();
       const slug = deriveSlug(url);
+      const trimmedDifficulty = difficulty.trim() || null;
 
-      // Find or create the problem row
       let problemRow: ExistingProblem | null = existing;
 
       if (!problemRow) {
-        // Try match by lc_url first, then by lc_slug
         if (url.trim()) {
           const { data } = await supabase
             .from("problems")
-            .select("id, title, lc_url, lc_slug, topic_tags, box_level")
+            .select("id, title, lc_url, lc_slug, lc_number, lc_difficulty, topic_tags, box_level")
             .eq("user_id", user.id)
             .eq("lc_url", url.trim())
             .maybeSingle();
-          if (data) problemRow = data;
+          if (data) problemRow = data as ExistingProblem;
         }
         if (!problemRow && slug) {
           const { data } = await supabase
             .from("problems")
-            .select("id, title, lc_url, lc_slug, topic_tags, box_level")
+            .select("id, title, lc_url, lc_slug, lc_number, lc_difficulty, topic_tags, box_level")
             .eq("user_id", user.id)
             .eq("lc_slug", slug)
             .maybeSingle();
-          if (data) problemRow = data;
+          if (data) problemRow = data as ExistingProblem;
         }
       }
 
@@ -136,17 +188,18 @@ function LogSolve() {
             user_id: user.id,
             lc_url: url.trim() || null,
             lc_slug: slug,
+            lc_number: number,
+            lc_difficulty: trimmedDifficulty,
             title: title.trim() || null,
             topic_tags: parsedTopics.length ? parsedTopics : null,
             box_level: 1,
           })
-          .select("id, title, lc_url, lc_slug, topic_tags, box_level")
+          .select("id, title, lc_url, lc_slug, lc_number, lc_difficulty, topic_tags, box_level")
           .single();
         if (error) throw error;
-        problemRow = data;
+        problemRow = data as ExistingProblem;
       }
 
-      // Brand-new problems are treated as current box 0 for the calculation.
       const currentBoxForCalc = isNew ? 0 : problemRow.box_level;
       const newBox = nextBoxLevel(currentBoxForCalc, rating);
       const nextDue = computeNextDue(newBox, today);
@@ -157,9 +210,10 @@ function LogSolve() {
           box_level: newBox,
           last_solved_at: today,
           next_due: nextDue,
-          // Refresh title / topics if user edited them
           title: title.trim() || problemRow.title,
           topic_tags: parsedTopics.length ? parsedTopics : problemRow.topic_tags,
+          lc_difficulty: trimmedDifficulty ?? problemRow.lc_difficulty,
+          lc_number: number ?? problemRow.lc_number,
         })
         .eq("id", problemRow.id);
       if (upErr) throw upErr;
@@ -220,6 +274,47 @@ function LogSolve() {
               disabled={!!existing}
               inputMode="url"
             />
+            {fetchState === "loading" && (
+              <p className="text-xs text-muted-foreground">Looking up problem…</p>
+            )}
+            {fetchState === "ok" && (
+              <p className="text-xs text-muted-foreground">Auto-filled from LeetCode — edit as needed.</p>
+            )}
+            {fetchState === "error" && (
+              <p className="text-xs text-muted-foreground">
+                Could not auto-fetch — you can fill these in manually.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2 col-span-1">
+              <Label htmlFor="number">#</Label>
+              <Input
+                id="number"
+                inputMode="numeric"
+                placeholder="1"
+                value={number ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  setNumber(v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+                }}
+              />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="difficulty">Difficulty</Label>
+              <select
+                id="difficulty"
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">—</option>
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
           </div>
 
           <div className="space-y-2">
