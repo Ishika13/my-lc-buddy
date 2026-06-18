@@ -105,12 +105,15 @@ function Today() {
           </div>
         </section>
 
-        <div className="mt-6 grid grid-cols-2 gap-2">
+        <div className="mt-6 grid grid-cols-3 gap-2">
           <Link to="/log">
-            <Button className="w-full">Log a solve</Button>
+            <Button className="w-full">Log</Button>
           </Link>
           <Link to="/history">
             <Button className="w-full" variant="secondary">History</Button>
+          </Link>
+          <Link to="/friends">
+            <Button className="w-full" variant="secondary">Friends</Button>
           </Link>
         </div>
 
