@@ -141,10 +141,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      friend_recent_titles: {
+        Row: {
+          last_solved_at: string | null
+          title: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      friend_stats: {
+        Row: {
+          current_streak: number | null
+          total_solved: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      can_view_user_stats: { Args: { _target: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
