@@ -13,11 +13,32 @@ export const BOX_INTERVALS: Record<number, number> = {
 export const MAX_BOX = 6;
 export const MIN_BOX = 1;
 
+// Determine new box level from rating + current box.
+// Brand-new problems should pass currentBox = 0.
+// Rating semantics: 1 = easy, 5 = struggled.
 export function nextBoxLevel(currentBox: number, rating: number): number {
-  const cur = Math.min(MAX_BOX, Math.max(MIN_BOX, currentBox || 1));
-  if (rating >= 4) return MIN_BOX; // struggled -> reset toward box 1
-  if (rating <= 2) return Math.min(MAX_BOX, cur + 1); // easy -> promote one box
-  return cur; // rating 3 -> stay
+  const cur = Math.max(0, currentBox ?? 0);
+  let next: number;
+  switch (rating) {
+    case 1:
+      next = cur + 2;
+      break;
+    case 2:
+      next = cur + 1;
+      break;
+    case 3:
+      next = Math.max(3, cur);
+      break;
+    case 4:
+      next = 2;
+      break;
+    case 5:
+      next = 1;
+      break;
+    default:
+      next = cur || 1;
+  }
+  return Math.min(MAX_BOX, Math.max(MIN_BOX, next));
 }
 
 export function todayLocalISO(d: Date = new Date()): string {
