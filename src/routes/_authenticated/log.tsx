@@ -127,7 +127,9 @@ function LogSolve() {
         }
       }
 
+      let isNew = false;
       if (!problemRow) {
+        isNew = true;
         const { data, error } = await supabase
           .from("problems")
           .insert({
@@ -144,7 +146,9 @@ function LogSolve() {
         problemRow = data;
       }
 
-      const newBox = nextBoxLevel(problemRow.box_level, rating);
+      // Brand-new problems are treated as current box 0 for the calculation.
+      const currentBoxForCalc = isNew ? 0 : problemRow.box_level;
+      const newBox = nextBoxLevel(currentBoxForCalc, rating);
       const nextDue = computeNextDue(newBox, today);
 
       const { error: upErr } = await supabase
