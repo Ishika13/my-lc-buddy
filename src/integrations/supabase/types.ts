@@ -14,7 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      friendships: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          status: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          status?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      problems: {
+        Row: {
+          box_level: number
+          created_at: string
+          id: string
+          last_solved_at: string | null
+          lc_difficulty: string | null
+          lc_slug: string | null
+          lc_url: string | null
+          next_due: string | null
+          title: string | null
+          topic_tags: string[] | null
+          user_id: string
+        }
+        Insert: {
+          box_level?: number
+          created_at?: string
+          id?: string
+          last_solved_at?: string | null
+          lc_difficulty?: string | null
+          lc_slug?: string | null
+          lc_url?: string | null
+          next_due?: string | null
+          title?: string | null
+          topic_tags?: string[] | null
+          user_id: string
+        }
+        Update: {
+          box_level?: number
+          created_at?: string
+          id?: string
+          last_solved_at?: string | null
+          lc_difficulty?: string | null
+          lc_slug?: string | null
+          lc_url?: string | null
+          next_due?: string | null
+          title?: string | null
+          topic_tags?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      solves: {
+        Row: {
+          created_at: string
+          id: string
+          problem_id: string
+          rating: number
+          solved_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          problem_id: string
+          rating: number
+          solved_at: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          problem_id?: string
+          rating?: number
+          solved_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solves_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
